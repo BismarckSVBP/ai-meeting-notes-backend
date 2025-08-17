@@ -1,35 +1,41 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { connectDB } from "./config/db.js";
 import express from "express";
 import cors from "cors";
+import { connectDB } from "./config/db.js";
 import summaryRoutes from "./routes/summaryRoutes.js";
 
 const app = express();
+
+// ✅ Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: process.env.NODE_ENV === "production" ? "*" : "http://localhost:5173",
     credentials: true,
   })
 );
-
 app.use(express.json({ limit: "10mb" }));
 
+// ✅ Routes
 app.get("/api/health", (_, res) => res.json({ ok: true }));
-
 app.use("/api", summaryRoutes);
 
-const PORT = process.env.PORT || 8080;
-
-const start = async () => {
-  try {
+// ✅ Connect DB (only once per cold start)
+let isConnected = false;
+async function initDB() {
+  if (!isConnected) {
     await connectDB(process.env.MONGODB_URI);
-    app.listen(PORT, () => console.log(`✅ API listening on ${PORT}`));
-  } catch (error) {
-    console.error("❌ Failed to start server:", error);
-    process.exit(1);
+    isConnected = true;
   }
-};
+}
+await initDB();
 
-start();
+// ✅ For Vercel
+export default app;
+
+// ✅ For local dev (only runs when `node index.js`)
+if (process.env.VERCEL !== "1") {
+  const PORT = process.env.PORT || 8080;
+  app.listen(PORT, () => console.log(`✅ API listening on port ${PORT}`));
+}
